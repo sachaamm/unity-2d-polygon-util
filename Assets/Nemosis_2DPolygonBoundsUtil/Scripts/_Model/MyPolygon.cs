@@ -1,21 +1,29 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using _Model;
 using _Utility;
 using UnityEngine;
 using UnityEngine.Profiling;
+using Random = UnityEngine.Random;
 
-namespace _Model
+namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
 {
     public class MyPolygon
     {
         private readonly HashSet<Vector2> _points;
 
-
         public MyPolygon(HashSet<Vector2> points)
         {
             this._points = points;
         }
+        
+        public Vector2 Position(int index)
+        {
+            return _points.ElementAt(index);
+        }
+        
+        #region Bounds
 
         private List<MyPolyLineWithIndices> Bounds()
         {
@@ -77,11 +85,9 @@ namespace _Model
             return closestPoint;
         }
 
+        #endregion
         
-        public Vector2 Position(int index)
-        {
-            return _points.ElementAt(index);
-        }
+        #region Triangulation
         
         private int _triangulationLeftIndex = 0;
         private int _triangulationRightIndex = 0;
@@ -97,7 +103,7 @@ namespace _Model
             _triangulationRightIndex = _points.Count - 1;
         }
 
-        public HashSet<int[]> Triangles()
+        public HashSet<int[]> Triangulate()
         {
             FixTriangulationIndexes();
 
@@ -248,41 +254,153 @@ namespace _Model
             return false;
         }
 
-        
         private bool EdgesOfTriangleAreOutOfPolygonBounds(int indexA, int indexB, int indexC)
         {
-            // Profiler.BeginSample("MyPolyLine");
             MyPolyLine edgeA = new MyPolyLine(_points.ElementAt(indexA), _points.ElementAt(indexB));
             MyPolyLine edgeB = new MyPolyLine(_points.ElementAt(indexB), _points.ElementAt(indexC));
             MyPolyLine edgeC = new MyPolyLine(_points.ElementAt(indexC), _points.ElementAt(indexA));
-            // Profiler.EndSample();
             
-            // Profiler.BeginSample("middlePoints");
             var middlePointA = edgeA.MiddlePoint();
             var middlePointB = edgeB.MiddlePoint();
             var middlePointC = edgeC.MiddlePoint();
-            // Profiler.EndSample();
 
-            // Profiler.BeginSample("edgeIsABound");
             bool firstEdgeIsABoundEdge = IsABoundEdge(indexA, indexB); // IsABoundEdge(indexA, indexB); // IsABoundEdge(edgeA);
             bool secondEdgeIsABoundEdge = IsABoundEdge(indexB, indexC); // IsABoundEdge(indexB, indexC); // IsABoundEdge(edgeB);
             bool thirdEdgeIsABoundEdge = IsABoundEdge(indexC, indexA); // IsABoundEdge(indexC, indexA); // IsABoundEdge(edgeC);
-            // Profiler.EndSample();
-            
+
             bool anEdgeIsOutsideBound = 
                 (!firstEdgeIsABoundEdge && !PointInsideBounds(middlePointA)) || 
                 (!secondEdgeIsABoundEdge && !PointInsideBounds(middlePointB)) ||
                 (!thirdEdgeIsABoundEdge && !PointInsideBounds(middlePointC));
 
             return anEdgeIsOutsideBound;
-
         }
-
 
         bool TriangulationIsDone()
         {
             return _myTriangles.SelectMany(s => s).Distinct().ToList().Count == _points.Count;
         }
         
+        #endregion
+        
+        #region Polygon Area
+
+        public List<MyTriangleAreaData> GetAreaData()
+        {
+            List<MyTriangleAreaData> data = new List<MyTriangleAreaData>();
+     
+            foreach (var t in _myTriangles)
+            {
+                var pointA = Position(t[0]);
+                var pointB = Position(t[1]);
+                var pointC = Position(t[2]);
+
+                var edgeA = new MyPolyLine(pointA, pointB);
+                var edgeB = new MyPolyLine(pointB, pointC);
+                var edgeC = new MyPolyLine(pointC, pointA);
+
+                float magA = edgeA.Magnitude();
+                float magB = edgeB.Magnitude();
+                float magC = edgeC.Magnitude();
+
+                MyPolyLine baseEdge = null;
+                int indexPointNotInBaseEdge = -1;
+                Vector2 baseEdgeNormalize = Vector2.down;
+
+                // Get Triangle Base 
+                if (magA >= magB && magA >= magC)
+                {
+                    baseEdge = edgeA;
+                    indexPointNotInBaseEdge = t[2];
+                    baseEdgeNormalize = edgeA.Normalized();
+                }
+                
+                if (magB >= magA && magB >= magC)
+                {
+                    baseEdge = edgeB;
+                    indexPointNotInBaseEdge = t[0];
+                    baseEdgeNormalize = edgeB.Normalized();
+                }
+                
+                if (magC >= magA && magC >= magB)
+                {
+                    baseEdge = edgeC;
+                    indexPointNotInBaseEdge = t[1];
+                    baseEdgeNormalize = edgeC.Normalized();
+                }
+
+                Vector2 baseEdgeRightAngleDirection = new Vector2(baseEdgeNormalize.y, -baseEdgeNormalize.x);
+
+                var baseOppositePoint = Position(indexPointNotInBaseEdge);
+                
+                MyPolyLine rightAnglePolyline = new MyPolyLine(baseOppositePoint, baseOppositePoint + baseEdgeRightAngleDirection * 9999999);
+
+                Vector2 intersectionWithBase = baseEdge.GetLineLineIntersectionPoint(rightAnglePolyline);
+                
+                // Get Triangle Height
+                MyPolyLine heightEdge = new MyPolyLine(intersectionWithBase, baseOppositePoint);
+                
+                data.Add(new MyTriangleAreaData(baseEdge, heightEdge));
+
+            }
+            
+            return data;
+        }
+
+        
+        public Vector2 GetRandomPoint()
+        {
+            double polygonArea = 0;
+
+            List<float> areaRatioInPolygons = new List<float>();
+
+            foreach (var triangleAreaData in GetAreaData())
+            {
+                double triangleArea =
+                    (triangleAreaData.baseEdge.Magnitude() * triangleAreaData.heightEdge.Magnitude()) / 2;
+
+                polygonArea += triangleArea;
+            }
+            
+            foreach (var triangleAreaData in GetAreaData())
+            {
+                double triangleArea =
+                    (triangleAreaData.baseEdge.Magnitude() * triangleAreaData.heightEdge.Magnitude()) / 2;
+
+                float areaRatio = (float)(triangleArea / polygonArea);
+                areaRatioInPolygons.Add(areaRatio);
+            }
+
+            int selectRandomTriangle = 0;
+
+            float random = Random.value;
+         
+            float ratioSum = 0;
+            int i = 0;
+
+            foreach (var ratio in areaRatioInPolygons)
+            {
+                
+                float nextRatioValue = i < areaRatioInPolygons.Count - 1 ? ratioSum + areaRatioInPolygons[i + 1] : 1;
+
+                if (random >= ratioSum && random < nextRatioValue)
+                {
+                    selectRandomTriangle = i;
+                }
+                ratioSum += ratio;
+                
+                i++;
+            }
+            
+            var randomFace = _myTriangles.ElementAt(selectRandomTriangle);
+            
+            MyTriangle myTriangle =
+                new MyTriangle(Position(randomFace[0]), Position(randomFace[1]), Position(randomFace[2]));
+            
+            return myTriangle.GetRandomPoint();
+
+        }
+        
+        #endregion
     }
 }

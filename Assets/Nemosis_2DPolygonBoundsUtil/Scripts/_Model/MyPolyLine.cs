@@ -14,6 +14,16 @@ namespace _Model
             this.b = b;
         }
 
+        public float Magnitude()
+        {
+            return (b - a).magnitude;
+        }
+        
+        public Vector2 Normalized()
+        {
+            return (b - a).normalized;
+        }
+
         public Vector2 RandomPointInPolyLine()
         {
             Vector2 diff = b - a;
@@ -79,6 +89,19 @@ namespace _Model
             }
 
             return isIntersecting;
+        }
+        
+        //Whats the coordinate of the intersection point between two lines in 2d space if we know they are intersecting
+        //http://thirdpartyninjas.com/blog/2008/10/07/line-segment-intersection/        
+        public Vector2 GetLineLineIntersectionPoint(MyPolyLine p)
+        {
+            float denominator = (p.b.y - p.a.y) * (b.x - a.x) - (p.b.x - p.a.x) * (b.y - a.y);
+
+            float u_a = ((p.b.x - p.a.x) * (a.y - p.a.y) - (p.b.y - p.a.y) * (a.x - p.a.x)) / denominator;
+
+            Vector2 intersectionPoint = a + u_a * (b - a);
+
+            return intersectionPoint;
         }
 
     }

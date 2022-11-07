@@ -2,6 +2,7 @@
 using System.Linq;
 using _Extensions;
 using _Model;
+using Nemosis_2DPolygonBoundsUtil.Scripts._Model;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -48,7 +49,7 @@ namespace _MonoBehaviour
                 var myPolygon = new MyPolygon(points);
 
                 Profiler.BeginSample("myPolygon.Triangles().ToList()");
-                triangles = myPolygon.Triangles().ToList();
+                triangles = myPolygon.Triangulate().ToList();
                 Profiler.EndSample();
                 
                 Profiler.BeginSample("triangles.SelectMany(s => s).ToList()");
@@ -70,7 +71,7 @@ namespace _MonoBehaviour
                 
                 var myPolygon = new MyPolygon(points);
 
-                triangles = myPolygon.Triangles().ToList();
+                triangles = myPolygon.Triangulate().ToList();
                 trianglesFaces = triangles.SelectMany(s => s).ToList();
             }
         }
