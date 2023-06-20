@@ -47,9 +47,10 @@ namespace _MonoBehaviour
                 Profiler.EndSample();
                 
                 var myPolygon = new MyPolygon(points);
+                myPolygon.Bake();
 
                 Profiler.BeginSample("myPolygon.Triangles().ToList()");
-                triangles = myPolygon.Triangulate().ToList();
+                triangles = myPolygon.Faces.ToList();
                 Profiler.EndSample();
                 
                 Profiler.BeginSample("triangles.SelectMany(s => s).ToList()");
@@ -71,7 +72,7 @@ namespace _MonoBehaviour
                 
                 var myPolygon = new MyPolygon(points);
 
-                triangles = myPolygon.Triangulate().ToList();
+                triangles = myPolygon.Faces.ToList();
                 trianglesFaces = triangles.SelectMany(s => s).ToList();
             }
         }

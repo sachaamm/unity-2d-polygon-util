@@ -35,5 +35,13 @@ namespace _Extensions
             Gizmos.color = c;
             Gizmos.DrawLine(new Vector3(a.x, a.y, 0), new Vector3(b.x, b.y, 0));
         }
+
+        public static void DisplayGuiText(this MonoBehaviour monoBehaviour, string text)
+        {
+            if (GUI.Button(new Rect(0, 0, 350, 50),text))
+            {
+                
+            }
+        }
     }
 }

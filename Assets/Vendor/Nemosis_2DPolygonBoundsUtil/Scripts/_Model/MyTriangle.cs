@@ -7,7 +7,7 @@ namespace _Model
     public class MyTriangle
     {
         public Vector2 a, b, c;
-        
+
         public MyTriangle(Vector2 a, Vector2 b, Vector2 c)
         {
             this.a = a;
@@ -25,16 +25,24 @@ namespace _Model
             Vector2 pointBetweenBandC = b + bC * Random.value;
             Vector2 pointBetweenCandA = c + cA * Random.value;
 
-            List<MyPolyLine> candidates = new List<MyPolyLine>
-            {
-                new (pointBetweenAandB, pointBetweenBandC),
-                new (pointBetweenBandC, pointBetweenCandA),
-                new (pointBetweenCandA, pointBetweenAandB)
-            };
+            byte randomChoice = (byte)Random.Range(0, 3);
 
-            MyPolyLine innerLineRandomlySelected = candidates.RandomItem();
-        
-            return innerLineRandomlySelected.RandomPointInPolyLine();
+            if (randomChoice == 0)
+            {
+                return new MyPolyLine(pointBetweenAandB, pointBetweenBandC).RandomPointInPolyLine();
+            }
+            
+            if (randomChoice == 1)
+            {
+                return new MyPolyLine(pointBetweenBandC, pointBetweenCandA).RandomPointInPolyLine();
+            }
+            
+            if (randomChoice == 2)
+            {
+                return new MyPolyLine(pointBetweenCandA, pointBetweenAandB).RandomPointInPolyLine();
+            }
+
+            return Vector2.negativeInfinity;
         }
     }
 }

@@ -13,9 +13,43 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
     {
         private readonly HashSet<Vector2> _points;
 
+        public HashSet<Vector2> Points() => _points;
+        
+        private List<MyTriangleAreaData> _areaData = new List<MyTriangleAreaData>();
+
+        public List<MyTriangleAreaData> AreaData => _areaData;
+
+        private double _polygonTotalArea;
+
+        public double PolygonTotalArea => _polygonTotalArea;
+        
+        List<float> areaRatiosInPolygons = new List<float>();
+
+                
+        private int _triangulationLeftIndex = 0;
+        private int _triangulationRightIndex = 0;
+        private int _overflowCount = 0;
+        private HashSet<int[]> _faces = new();
+
+        public HashSet<int[]> Faces => _faces;
+
+        private int _indexTriangulation = 0;
+
+        private List<MyTriangle> _myTriangles = new List<MyTriangle>();
+
+        public List<MyTriangle> MyTriangles => _myTriangles;
+
+
         public MyPolygon(HashSet<Vector2> points)
         {
             this._points = points;
+        }
+        
+        public void Bake()
+        {
+            Triangulate();
+            CalculateAreaData();
+            CalculateAreasRatio();
         }
         
         public Vector2 Position(int index)
@@ -88,22 +122,19 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
         #endregion
         
         #region Triangulation
-        
-        private int _triangulationLeftIndex = 0;
-        private int _triangulationRightIndex = 0;
-        private int _overflowCount = 0;
-        private HashSet<int[]> _myTriangles = new();
-        private int _indexTriangulation = 0;
 
+        
         void FixTriangulationIndexes()
         {
-            _myTriangles = new HashSet<int[]>();
+            _faces = new HashSet<int[]>();
+            _myTriangles = new List<MyTriangle>();
+            
             _overflowCount = 0;
             _triangulationLeftIndex = 0;
             _triangulationRightIndex = _points.Count - 1;
         }
 
-        public HashSet<int[]> Triangulate()
+        private void Triangulate()
         {
             FixTriangulationIndexes();
 
@@ -111,8 +142,6 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
             {
                 ConnectAllPossibleTriangleToCurrentIndex();
             }
-            
-            return _myTriangles;
         }
 
         int[] TriangleFace(int a, int b, int c)
@@ -122,7 +151,7 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
         
         bool ContainsTriangle(int a, int b, int c)
         {
-            return _myTriangles.Any(t => t[0] == a && t[1] == b && t[2] == c);
+            return _faces.Any(t => t[0] == a && t[1] == b && t[2] == c);
         }
 
         /// <summary>
@@ -146,7 +175,7 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
                     Profiler.BeginSample("if contains and valid add");
                     if (!ContainsTriangle(face[0], face[1], face[2]) && CurrentTriangulationIsValid(_indexTriangulation, i, nextIndex) )
                     {
-                        _myTriangles.Add(face);
+                        _faces.Add(face);
                     }
                     Profiler.EndSample();
                 }
@@ -164,7 +193,15 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
                         {
                             var face = TriangleFace(bound.indexA, bound.indexB, i);
                             Array.Sort(face);
-                            _myTriangles.Add(face);
+                            _faces.Add(face);
+
+                            MyTriangle triangle = new MyTriangle(
+                                Position(face[0]), 
+                                Position(face[1]),
+                                Position(face[2])
+                                );
+                            
+                            _myTriangles.Add(triangle);
                         }
                     }
                 }
@@ -173,9 +210,9 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
 
         bool ATriangleContainsBoundIndexes(MyPolyLineWithIndices bound)
         {
-            for (int i = 0; i < _myTriangles.Count; i++)
+            for (int i = 0; i < _faces.Count; i++)
             {
-                var t = _myTriangles.ElementAt(i);
+                var t = _faces.ElementAt(i);
                 if (t.Contains(bound.indexA) && t.Contains(bound.indexB)) return true;
             }
             return false;
@@ -227,7 +264,7 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
                 }
             }
 
-            foreach (var t in _myTriangles)
+            foreach (var t in _faces)
             {
                 var tEdgeA = new MyPolyLine(Position(t[0]), Position(t[1]));
                 var tEdgeB = new MyPolyLine(Position(t[1]), Position(t[2]));
@@ -278,18 +315,19 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
 
         bool TriangulationIsDone()
         {
-            return _myTriangles.SelectMany(s => s).Distinct().ToList().Count == _points.Count;
+            return _faces.SelectMany(s => s).Distinct().ToList().Count == _points.Count;
         }
         
         #endregion
         
         #region Polygon Area
-
-        public List<MyTriangleAreaData> GetAreaData()
+        
+        
+        private List<MyTriangleAreaData> CalculateAreaData()
         {
-            List<MyTriangleAreaData> data = new List<MyTriangleAreaData>();
+            _areaData = new List<MyTriangleAreaData>();
      
-            foreach (var t in _myTriangles)
+            foreach (var t in _faces)
             {
                 var pointA = Position(t[0]);
                 var pointB = Position(t[1]);
@@ -340,37 +378,31 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
                 // Get Triangle Height
                 MyPolyLine heightEdge = new MyPolyLine(intersectionWithBase, baseOppositePoint);
                 
-                data.Add(new MyTriangleAreaData(baseEdge, heightEdge));
+                _areaData.Add(new MyTriangleAreaData(baseEdge, heightEdge));
 
             }
             
-            return data;
+            return _areaData;
         }
 
-        
-        public Vector2 GetRandomPoint()
+        private double GetArea()
         {
             double polygonArea = 0;
-
-            List<float> areaRatioInPolygons = new List<float>();
-
-            foreach (var triangleAreaData in GetAreaData())
+            
+            foreach (var triangleAreaData in _areaData)
             {
                 double triangleArea =
                     (triangleAreaData.baseEdge.Magnitude() * triangleAreaData.heightEdge.Magnitude()) / 2;
 
                 polygonArea += triangleArea;
             }
+
+            return polygonArea;
+        }
+        
+        public Vector2 GetRandomPoint()
+        {
             
-            foreach (var triangleAreaData in GetAreaData())
-            {
-                double triangleArea =
-                    (triangleAreaData.baseEdge.Magnitude() * triangleAreaData.heightEdge.Magnitude()) / 2;
-
-                float areaRatio = (float)(triangleArea / polygonArea);
-                areaRatioInPolygons.Add(areaRatio);
-            }
-
             int selectRandomTriangle = 0;
 
             float random = Random.value;
@@ -378,10 +410,10 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
             float ratioSum = 0;
             int i = 0;
 
-            foreach (var ratio in areaRatioInPolygons)
+            foreach (var ratio in areaRatiosInPolygons)
             {
                 
-                float nextRatioValue = i < areaRatioInPolygons.Count - 1 ? ratioSum + areaRatioInPolygons[i + 1] : 1;
+                float nextRatioValue = i < areaRatiosInPolygons.Count - 1 ? ratioSum + areaRatiosInPolygons[i + 1] : 1;
 
                 if (random >= ratioSum && random < nextRatioValue)
                 {
@@ -392,13 +424,38 @@ namespace Nemosis_2DPolygonBoundsUtil.Scripts._Model
                 i++;
             }
             
-            var randomFace = _myTriangles.ElementAt(selectRandomTriangle);
+            var randomFace = _faces.ElementAt(selectRandomTriangle);
             
             MyTriangle myTriangle =
                 new MyTriangle(Position(randomFace[0]), Position(randomFace[1]), Position(randomFace[2]));
             
             return myTriangle.GetRandomPoint();
 
+        }
+
+        void CalculateAreasRatio()
+        {
+            double polygonArea = 0;
+
+            areaRatiosInPolygons = new List<float>();
+
+            foreach (var triangleAreaData in _areaData)
+            {
+                double triangleArea =
+                    (triangleAreaData.baseEdge.Magnitude() * triangleAreaData.heightEdge.Magnitude()) / 2;
+
+                polygonArea += triangleArea;
+            }
+            
+            foreach (var triangleAreaData in _areaData)
+            {
+                double triangleArea =
+                    (triangleAreaData.baseEdge.Magnitude() * triangleAreaData.heightEdge.Magnitude()) / 2;
+
+                float areaRatio = (float)(triangleArea / polygonArea);
+                areaRatiosInPolygons.Add(areaRatio);
+            }
+            
         }
         
         #endregion

@@ -21,11 +21,8 @@ namespace _MonoBehaviour
             MyPolygon myPolygon = new MyPolygon(polygonDrawer.PointsAsMyVector2HashSet());
 
             bool insideBounds = myPolygon.PointInsideBounds(this.MousePosToWorldPoint());
-            
-            if (GUI.Button(new Rect(0, 0, 350, 50), insideBounds ? "Inside" : "Outside" ))
-            {
-                
-            }
+
+            this.DisplayGuiText(insideBounds ? "Inside" : "Outside" );
         }
     }
 }
